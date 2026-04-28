@@ -325,6 +325,8 @@ namespace rtxmu
         for (const uint64_t& accelStructId : accelStructIds)
         {
             VkAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            if (!accelStruct)
+                continue;
 
             // Only do compaction on the confirmed completion of the original build execution.
             if (accelStruct->requestedCompaction == true &&
@@ -372,6 +374,8 @@ namespace rtxmu
             for (const uint64_t& accelStructId : accelStructIds)
             {
                 VkAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+                if (!accelStruct)
+                    continue;
 
                 // Only do compaction on the confirmed completion of the original build execution.
                 if (accelStruct->requestedCompaction == true)
@@ -412,8 +416,11 @@ namespace rtxmu
         // Complete queue indicates cleanup for acceleration structures
         for (const uint64_t& accelStructId : accelStructIds)
         {
+            VkAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            if (!accelStruct)
+                continue;
             PostBuildRelease(accelStructId);
-            m_asBufferBuildQueue[accelStructId]->readyToFree = true;
+            accelStruct->readyToFree = true;
         }
     }
 
@@ -584,6 +591,8 @@ namespace rtxmu
     void VkAccelStructManager::ReleaseAccelerationStructures(const uint64_t accelStructId)
     {
         VkAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        if (!accelStruct)
+            return;
 
         m_totalCompactedMemory -= accelStruct->compactionSize;
         m_totalUncompactedMemory -= accelStruct->resultSize;
