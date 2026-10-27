@@ -78,6 +78,10 @@ namespace rtxmu
         {
             const uint64_t accelStructId = accelStructIds[buildIndex];
             DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            // [UAA] - START - skip released acceleration structures
+            if (!accelStruct)
+                continue;
+            // [UAA] - END
 
             if ((asInputs[buildIndex].Flags & D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE) &&
                 (asInputs[buildIndex].Flags & D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE))
@@ -313,10 +317,16 @@ namespace rtxmu
 
         for (uint64_t accelStructId : accelStructIds)
         {
+            DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            // [UAA] - START - skip released acceleration structures
+            if (!accelStruct)
+                continue;
+            // [UAA] - END
+
             D3D12_RESOURCE_BARRIER rb = {};
-            rb.UAV.pResource = m_asBufferBuildQueue[accelStructId]->isCompacted ?
-                m_asBufferBuildQueue[accelStructId]->compactionGpuMemory.block.getResource() :
-                m_asBufferBuildQueue[accelStructId]->resultGpuMemory.block.getResource();
+            rb.UAV.pResource = accelStruct->isCompacted ?
+                accelStruct->compactionGpuMemory.block.getResource() :
+                accelStruct->resultGpuMemory.block.getResource();
             rb.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
             commandList->ResourceBarrier(1, &rb);
         }
@@ -334,12 +344,18 @@ namespace rtxmu
 
         for (const uint64_t& accelStructId : accelStructIds)
         {
+            DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            // [UAA] - START - skip released acceleration structures
+            if (!accelStruct)
+                continue;
+            // [UAA] - END
+
             // Only do compaction on the confirmed completion of the original build execution.
-            if (m_asBufferBuildQueue[accelStructId]->requestedCompaction == true)
+            if (accelStruct->requestedCompaction == true)
             {
                 CopyCompaction(commandList, accelStructId);
 
-                compactionResourceBarrier = m_asBufferBuildQueue[accelStructId]->compactionGpuMemory.block.getResource();
+                compactionResourceBarrier = accelStruct->compactionGpuMemory.block.getResource();
             }
         }
 
@@ -372,8 +388,13 @@ namespace rtxmu
         // Complete queue indicates cleanup for acceleration structures
         for (const uint64_t& accelStructId : accelStructIds)
         {
+            DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+            // [UAA] - START - skip released acceleration structures
+            if (!accelStruct)
+                continue;
+            // [UAA] - END
             PostBuildRelease(accelStructId);
-            m_asBufferBuildQueue[accelStructId]->readyToFree = true;
+            accelStruct->readyToFree = true; // [UAA]
         }
     }
 
@@ -381,6 +402,10 @@ namespace rtxmu
     D3D12_GPU_VIRTUAL_ADDRESS DxAccelStructManager::GetAccelStructGPUVA(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return 0;
+        // [UAA] - END
 
         return accelStruct->isCompacted ?
                    D3D12Block::getGPUVA(accelStruct->compactionGpuMemory.block,
@@ -393,6 +418,10 @@ namespace rtxmu
     D3D12_GPU_VIRTUAL_ADDRESS DxAccelStructManager::GetAccelStructCompactedGPUVA(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return 0;
+        // [UAA] - END
 
         return accelStruct->compactionGpuMemory.subBlock == nullptr ? 0 : D3D12Block::getGPUVA(accelStruct->compactionGpuMemory.block,
                                                                                                accelStruct->compactionGpuMemory.offset);
@@ -401,6 +430,10 @@ namespace rtxmu
     uint64_t DxAccelStructManager::GetInitialAccelStructSize(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return 0;
+        // [UAA] - END
 
         return accelStruct->resultGpuMemory.subBlock->getSize() -
                accelStruct->resultGpuMemory.subBlock->getUnusedSize();
@@ -409,6 +442,10 @@ namespace rtxmu
     uint64_t DxAccelStructManager::GetCompactedAccelStructSize(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return 0;
+        // [UAA] - END
 
         return accelStruct->compactionGpuMemory.subBlock->getSize() -
                accelStruct->compactionGpuMemory.subBlock->getUnusedSize();
@@ -417,12 +454,20 @@ namespace rtxmu
     bool DxAccelStructManager::GetRequestedCompaction(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return false;
+        // [UAA] - END
         return accelStruct->requestedCompaction;
     }
 
     bool DxAccelStructManager::GetCompactionComplete(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return false;
+        // [UAA] - END
         return accelStruct->isCompacted;
     }
 
@@ -498,6 +543,10 @@ namespace rtxmu
     void DxAccelStructManager::PostBuildRelease(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return;
+        // [UAA] - END
 
         // Only delete compaction size and result if compaction was performed
         if (accelStruct->isCompacted == true)
@@ -547,6 +596,10 @@ namespace rtxmu
     void DxAccelStructManager::ReleaseAccelerationStructures(const uint64_t accelStructId)
     {
         DxAccelerationStructure* accelStruct = m_asBufferBuildQueue[accelStructId];
+        // [UAA] - START - skip released acceleration structures
+        if (!accelStruct)
+            return;
+        // [UAA] - END
 
         m_totalCompactedMemory -= accelStruct->compactionSize;
         m_totalUncompactedMemory -= accelStruct->resultSize;
